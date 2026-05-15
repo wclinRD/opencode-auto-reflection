@@ -1,0 +1,1 @@
+{"schema_version":1,"fields":["ts","type","tool","error_code","operation","resolution","session","task_id","platform","agent_type","confidence","user_feedback"],"valid_types":["error","pattern","deletion","note"],"created":"2026-05-15","description":"self-reflection learning log - append only, one JSON object per line"}
