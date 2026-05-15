@@ -2,6 +2,8 @@
 
 讓 OpenCode agent 擁有自動學習反思能力。工具報錯時分析原因、任務成功時提取模式、自動產生新 skill 形成持續學習迴圈。
 
+> 🔗 **推薦搭配**: [opencode-local-LLM-hearbeat](https://github.com/wclinRD/opencode-local-LLM-hearbeat) — Smart Heartbeat Plugin，兩者搭配使用可實現完整的任務續行 + 自動反省迴圈。
+
 ## 快速安裝
 
 ### 一鍵安裝
@@ -27,11 +29,30 @@ cp skills/self-reflection/SKILL.md ~/.agents/skills/self-reflection/
 touch ~/.opencode/reflection-log.jsonl
 ```
 
+### 選擇性安裝：Smart Heartbeat Plugin（推薦搭配）
+
+建議同時安裝 [Smart Heartbeat Plugin](https://github.com/wclinRD/opencode-local-LLM-hearbeat) 以獲得完整的續行 + 反省體驗：
+
+```bash
+# 安裝 Heartbeat Plugin
+git clone https://github.com/wclinRD/opencode-local-LLM-hearbeat.git
+# 請依照該專案 README 指示安裝
+
+# 安裝 Heartbeat Skill
+cp -r opencode-local-LLM-hearbeat/skills/smart-heartbeat-helper ~/.opencode/skills/
+```
+
+兩者整合後的效果：
+- Heartbeat 在 session 逾時後自動續行未完成的 todo
+- self-reflection 在續行時保留反省狀態（`reflecting` flag 跨續行存活）
+- 反省完成後才繼續執行續行任務，不中斷反省流程
+
 ### 驗證安裝
 
 ```bash
 ls ~/.agents/skills/self-reflection/SKILL.md     # 應存在
 ls ~/.opencode/reflection-log.jsonl               # 應存在
+ls ~/.opencode/skills/smart-heartbeat-helper/SKILL.md  # 如安裝 Heartbeat 應存在
 ```
 
 ## 使用方式
@@ -133,11 +154,46 @@ L3 定期總結 —— Session 結束 / 手動觸發
 
 ### Smart Heartbeat Plugin
 
-如使用 Smart Heartbeat Plugin，self-reflection 會自動在續行時保留反省狀態，避免續行打斷反省流程。
+- **專案連結**: [opencode-local-LLM-hearbeat](https://github.com/wclinRD/opencode-local-LLM-hearbeat)
+- **整合方式**: self-reflection 已內建 Heartbeat 相容性
+
+Smart Heartbeat Plugin 會在 session 逾時後自動注入續行提示，讓 agent 繼續未完成的任務。
+self-reflection 與它協作的方式如下：
+
+```
+Heartbeat 續行觸發
+  → 檢查 working_memory 是否有 reflecting: true
+    → 有：等待反省完成再繼續執行任務（不中斷反省）
+    → 無：正常執行續行
+  → reflection flag 在 working_memory 中跨續行存活
+  → 續行後不重置 reflectionDepth（避免深度計數器歸零導致無限遞迴）
+```
+
+**為什麼需要兩者搭配？**
+
+| 情境 | 只有 Heartbeat | 加上 self-reflection |
+|------|---------------|-------------------|
+| Session 逾時續行 | ✅ 自動續行 | ✅ 自動續行 |
+| 續行時正在反省 | ❌ 反省被打斷 | ✅ 反省狀態保留 |
+| 工具報錯後反省 | ❌ 無反省能力 | ✅ L1 即時分析 |
+| 跨 session 學習 | ❌ 無學習能力 | ✅ L2 模式提取 |
+| 技能自動演化 | ❌ 靜態 skill | ✅ 自動產生新 skill |
 
 ### 強制循環演算法
 
-self-reflection 已與 OpenCode 的強制循環演算法整合，在每次工具呼叫後自動檢查是否需要反省。
+self-reflection 已與 OpenCode 的強制循環演算法整合，擴充為：
+
+```
+原始循環:
+  工具呼叫 → 查 todo → 有 pending? → 執行
+
+擴充循環:
+  工具呼叫
+    → 檢查上個工具結果（有錯誤？ → L1 反省）
+    → 查 todo → 有 pending? → 執行
+    → 所有 completed? → L2 模式提取
+    → session 結束? → L3 定期總結
+```
 
 ## 架構設計
 
